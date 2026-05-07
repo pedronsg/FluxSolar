@@ -215,7 +215,7 @@ FluxSolar/
 
 ## Development Notes
 
-- **TLS certs** — dev files go in `cmd/certs/grpc/` (not committed). Use the extension's certificate helper or replace with real certs for production.
+- **TLS certs** — dev files go in `cmd/certs/grpc/`.
 - **Launcher icon** — must stay at `cmd/FluxSolar/orb/icon.svg`.
 - **SDK squiggles** — if VS Code shows red squiggles in `go.mod`, run `go work sync && go mod tidy` in the project root and in `./orbit-os-sdk-go`, then reload the window.
 - **App identity** — module `fluxsolar` · on-device ID `org.orbit-os.apps.fluxsolar` · app folder `cmd/FluxSolar`.
