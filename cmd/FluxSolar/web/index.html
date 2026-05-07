@@ -1,0 +1,1719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FluxSolar</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <style>
+    :root {
+      --solar:   #f59e0b;
+      --grid:    #818cf8;
+      --battery: #34d399;
+      --home:    #60a5fa;
+      --bg:      #0f172a;
+      --card:    #1e293b;
+      --border:  #334155;
+      --text:    #f1f5f9;
+      --muted:   #94a3b8;
+      --danger:  #f87171;
+      --warn:    #fb923c;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      padding: 0.75rem;
+    }
+
+    /* ── Header ─────────────────────────────────────────── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.65rem 1rem;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 0.875rem;
+      margin-bottom: 0.75rem;
+    }
+
+    header h1 { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.02em; }
+
+    #hdr-right {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .menu-btn {
+      color: var(--text);
+      text-decoration: none;
+      border: 1px solid var(--border);
+      border-radius: 9999px;
+      padding: 0.38rem 0.7rem;
+      font-size: 0.72rem;
+      background: linear-gradient(180deg, #1f2d44 0%, #16253a 100%);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .menu-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+    }
+
+    .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--danger);
+      flex-shrink: 0;
+      transition: background 0.4s;
+    }
+    .dot.on { background: var(--battery); }
+
+    /* ── Error bar ───────────────────────────────────────── */
+    #err-bar {
+      display: none;
+      background: #450a0a;
+      border: 1px solid var(--danger);
+      color: var(--danger);
+      border-radius: 0.75rem;
+      padding: 0.45rem 0.9rem;
+      font-size: 0.78rem;
+      margin-bottom: 0.75rem;
+    }
+
+    /* ── SVG flow card ───────────────────────────────────── */
+    .flow-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 0.875rem;
+      padding: 1rem 0.5rem 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    #flow-svg { width: 100%; display: block; max-width: 480px; margin: 0 auto; }
+
+    /* animated dash lines */
+    .flow-line {
+      fill: none;
+      stroke-width: 3;
+      stroke-dasharray: 7 5;
+      opacity: 0.18;
+      transition: opacity 0.4s;
+    }
+    .flow-line.fwd  { opacity: 1; animation: dash-fwd 1.2s linear infinite; }
+    .flow-line.rev  { opacity: 1; animation: dash-rev 1.2s linear infinite; }
+    @keyframes dash-fwd { to { stroke-dashoffset: -120; } }
+    @keyframes dash-rev { to { stroke-dashoffset:  120; } }
+    .flow-particle {
+      opacity: 0;
+      transition: opacity 0.25s ease;
+      filter: drop-shadow(0 0 5px rgba(255,255,255,0.35));
+    }
+    .flow-particle.core { r: 3.4; }
+    .flow-particle.tail { r: 2.7; }
+
+    /* ── Analytics tabs ──────────────────────────────────── */
+    .analytics-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.65rem;
+    }
+    .atabs {
+      display: flex;
+      gap: 0.3rem;
+    }
+    .atab {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 0.45rem;
+      padding: 0.28rem 0.85rem;
+      font-size: 0.72rem;
+      font-family: inherit;
+      cursor: pointer;
+      transition: color 0.15s, background 0.15s, border-color 0.15s;
+    }
+    .atab:hover { color: var(--text); border-color: var(--muted); }
+    .atab.active {
+      background: var(--border);
+      color: var(--text);
+      border-color: var(--border);
+      font-weight: 600;
+    }
+
+    /* ── Stats grid ──────────────────────────────────────── */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.6rem;
+      margin-top: 0.65rem;
+      margin-bottom: 0.1rem;
+    }
+
+    @media (min-width: 420px) { .stats { grid-template-columns: repeat(3, 1fr); } }
+
+    .stat {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 0.7rem 0.85rem;
+    }
+
+    .stat-lbl {
+      font-size: 0.67rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.2rem;
+      white-space: nowrap;
+    }
+
+    .stat-val {
+      font-size: 1.25rem;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+
+    .stat-unit {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-left: 0.15rem;
+    }
+
+    /* ── Profile info ────────────────────────────────────── */
+
+    .profiles-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 0.875rem;
+      padding: 0.85rem;
+      margin-top: 0.75rem;
+    }
+    .profiles-card h2 {
+      font-size: 0.9rem;
+      margin-bottom: 0.5rem;
+    }
+    .profiles-help {
+      color: var(--muted);
+      font-size: 0.72rem;
+      margin-bottom: 0.55rem;
+    }
+    #profiles-list {
+      display: grid;
+      gap: 0.4rem;
+      margin-bottom: 0.7rem;
+    }
+    .profile-item {
+      border: 1px solid var(--border);
+      border-radius: 0.55rem;
+      padding: 0.5rem 0.6rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+    .profile-meta {
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .btn-del {
+      border: 1px solid var(--danger);
+      background: transparent;
+      color: var(--danger);
+      border-radius: 0.4rem;
+      padding: 0.3rem 0.45rem;
+      font-size: 0.72rem;
+      cursor: pointer;
+    }
+    #profile-json {
+      width: 100%;
+      min-height: 170px;
+      background: #0b1220;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 0.5rem;
+      padding: 0.55rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.72rem;
+    }
+    #profiles-msg {
+      margin-top: 0.45rem;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    #profile-save {
+      margin-top: 0.45rem;
+      border: 1px solid var(--border);
+      background: #1d4ed8;
+      color: white;
+      border-radius: 0.4rem;
+      padding: 0.38rem 0.6rem;
+      font-size: 0.72rem;
+      cursor: pointer;
+    }
+    .analytics-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 0.875rem;
+      padding: 0.85rem;
+      margin-bottom: 0.75rem;
+    }
+    .history-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 0.55rem;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .history-controls select {
+      appearance: none;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 0.5rem;
+      padding: 0.35rem 1.8rem 0.35rem 0.7rem;
+      font-size: 0.75rem;
+      font-family: inherit;
+      cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.55rem center;
+      transition: border-color 0.15s;
+    }
+    .history-controls select:hover { border-color: var(--muted); }
+    .date-nav {
+      display: flex;
+      align-items: center;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 0.5rem;
+      overflow: hidden;
+      transition: border-color 0.15s;
+    }
+    .date-nav:hover { border-color: var(--muted); }
+    .date-nav-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      padding: 0.3rem 0.6rem;
+      cursor: pointer;
+      font-size: 1rem;
+      line-height: 1;
+      transition: color 0.15s, background 0.15s;
+    }
+    .date-nav-btn:hover:not(:disabled) { color: var(--text); background: var(--border); }
+    .date-nav-btn:disabled { color: var(--border); cursor: default; }
+    .date-nav-sep { width: 1px; background: var(--border); align-self: stretch; }
+    .date-nav-wrap { position: relative; }
+    #date-display {
+      background: none;
+      border: none;
+      font-size: 0.75rem;
+      color: var(--text);
+      padding: 0 0.6rem;
+      min-width: 5.5rem;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      font-family: inherit;
+      transition: color 0.15s;
+    }
+    #date-display:hover { color: var(--grid); }
+
+    /* ── Date picker popup ───────────────────────────────── */
+    .date-picker-popup {
+      display: none;
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 0.75rem;
+      z-index: 200;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.55);
+      min-width: 210px;
+    }
+    .date-picker-popup.open { display: block; }
+    @media (max-width: 520px) {
+      .date-picker-popup {
+        position: fixed;
+        top: auto;
+        bottom: 1rem;
+        right: 0.75rem;
+        left: 0.75rem;
+        min-width: unset;
+        border-radius: 1rem;
+      }
+    }
+    .dp-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.55rem;
+    }
+    .dp-nav-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 0.15rem 0.45rem;
+      border-radius: 0.35rem;
+      font-family: inherit;
+      transition: color 0.15s, background 0.15s;
+    }
+    .dp-nav-btn:hover { color: var(--text); background: var(--border); }
+    #dp-title {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .dp-grid { display: grid; }
+    .dp-grid.dp-days   { grid-template-columns: repeat(7, 1fr); gap: 2px; }
+    .dp-grid.dp-months { grid-template-columns: repeat(3, 1fr); gap: 4px; }
+    .dp-grid.dp-years  { grid-template-columns: repeat(4, 1fr); gap: 4px; }
+    .dp-dow {
+      text-align: center;
+      font-size: 0.62rem;
+      color: var(--muted);
+      padding: 0.15rem 0 0.3rem;
+    }
+    .dp-cell {
+      background: none;
+      border: none;
+      color: var(--text);
+      cursor: pointer;
+      border-radius: 0.35rem;
+      font-size: 0.72rem;
+      text-align: center;
+      padding: 0.32rem 0.1rem;
+      font-family: inherit;
+      transition: background 0.12s, color 0.12s;
+    }
+    .dp-cell:not(:disabled):hover { background: var(--border); }
+    .dp-cell.today { color: var(--grid); font-weight: 700; }
+    .dp-cell.selected { background: var(--grid) !important; color: #fff; font-weight: 600; }
+    .dp-cell:disabled { color: #334155; cursor: default; }
+    .dp-cell.empty { pointer-events: none; }
+    .dp-footer { margin-top: 0.6rem; text-align: center; }
+    #dp-today {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 0.4rem;
+      padding: 0.22rem 1rem;
+      font-size: 0.68rem;
+      cursor: pointer;
+      font-family: inherit;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    #dp-today:hover { color: var(--text); border-color: var(--muted); }
+    #history-status {
+      color: var(--muted);
+      font-size: 0.72rem;
+      margin-top: 0.45rem;
+      margin-bottom: 0.1rem;
+      min-height: 1em;
+    }
+    .history-legend {
+      display: flex;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+    }
+    .series-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 2rem;
+      padding: 0.18rem 0.65rem 0.18rem 0.45rem;
+      font-size: 0.68rem;
+      font-family: inherit;
+      cursor: pointer;
+      color: var(--muted);
+      transition: color 0.15s, border-color 0.15s, opacity 0.15s;
+      opacity: 0.4;
+      user-select: none;
+    }
+    .series-toggle::before {
+      content: "";
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--sc, var(--muted));
+      flex-shrink: 0;
+    }
+    .series-toggle[data-key="solar_w"]   { --sc: #f59e0b; }
+    .series-toggle[data-key="load_w"]    { --sc: #60a5fa; }
+    .series-toggle[data-key="grid_w"]    { --sc: #818cf8; }
+    .series-toggle[data-key="battery_w"] { --sc: #34d399; }
+    .series-toggle.active {
+      opacity: 1;
+      color: var(--sc);
+      border-color: var(--sc);
+    }
+    #history-canvas {
+      width: 100%;
+      height: 220px;
+      background: #0b1220;
+      border: 1px solid var(--border);
+      border-radius: 0.55rem;
+      display: block;
+    }
+  footer {
+    margin-top: 2rem;
+    padding: 0.75rem 1.5rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+  </style>
+</head>
+<body>
+
+<header>
+  <a class="menu-btn" id="mqtt-link" href="/mqtt" style="display:flex;align-items:center;gap:0.3rem">
+    <span id="mqtt-dot" style="width:7px;height:7px;border-radius:50%;background:var(--border);display:inline-block"></span>MQTT
+  </a>
+  <div id="hdr-right">
+    <select id="profile-select" style="
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 0.375rem;
+      padding: 0.4rem 0.6rem;
+      font-size: 0.75rem;
+      cursor: pointer;
+    ">
+      <option>Profile...</option>
+    </select>
+    <a id="profiles-link" class="menu-btn" href="/profiles" style="display:none">Profile Manager</a>
+    <select id="port-select" style="
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 0.375rem;
+      padding: 0.4rem 0.6rem;
+      font-size: 0.75rem;
+      cursor: pointer;
+    ">
+      <option>Loading ports...</option>
+    </select>
+    <span class="dot" id="dot"></span>
+  </div>
+</header>
+
+<div id="err-bar"></div>
+
+<!-- ── Energy flow SVG ────────────────────────────────────── -->
+<div class="flow-card">
+  <svg id="flow-svg" viewBox="0 0 360 335" preserveAspectRatio="xMidYMid meet">
+
+    <!-- Lines (drawn first, behind circles) -->
+    <!-- Solar → Home (vertical) -->
+    <line id="ln-solar"   class="flow-line" stroke="var(--solar)"
+          x1="180" y1="76" x2="180" y2="126"/>
+    <!-- Home → Battery (diagonal left) -->
+    <line id="ln-battery" class="flow-line" stroke="var(--battery)"
+          x1="155" y1="193" x2="96"  y2="233"/>
+    <!-- Home → Grid (diagonal right) -->
+    <line id="ln-grid"    class="flow-line" stroke="var(--grid)"
+          x1="205" y1="193" x2="264" y2="233"/>
+    <circle id="pt-solar-1" class="flow-particle core" cx="180" cy="100" r="3.4" fill="var(--solar)"/>
+    <circle id="pt-solar-2" class="flow-particle tail" cx="180" cy="100" r="2.7" fill="var(--solar)"/>
+    <circle id="pt-solar-3" class="flow-particle tail" cx="180" cy="100" r="2.7" fill="var(--solar)"/>
+    <circle id="pt-battery-1" class="flow-particle core" cx="126" cy="214" r="3.4" fill="var(--battery)"/>
+    <circle id="pt-battery-2" class="flow-particle tail" cx="126" cy="214" r="2.7" fill="var(--battery)"/>
+    <circle id="pt-battery-3" class="flow-particle tail" cx="126" cy="214" r="2.7" fill="var(--battery)"/>
+    <circle id="pt-grid-1" class="flow-particle core" cx="234" cy="214" r="3.4" fill="var(--grid)"/>
+    <circle id="pt-grid-2" class="flow-particle tail" cx="234" cy="214" r="2.7" fill="var(--grid)"/>
+    <circle id="pt-grid-3" class="flow-particle tail" cx="234" cy="214" r="2.7" fill="var(--grid)"/>
+
+    <!-- ☀️ Solar node -->
+    <circle cx="180" cy="52" r="36" fill="var(--card)" stroke="var(--solar)" stroke-width="2.5"/>
+    <text x="180" y="45"  text-anchor="middle" font-size="16">☀️</text>
+    <text x="180" y="60"  text-anchor="middle" fill="var(--text)"  font-size="13" font-weight="700" id="sv-solar-w">--</text>
+    <text x="180" y="72"  text-anchor="middle" fill="var(--muted)" font-size="8.5">SOLAR</text>
+
+    <!-- 🏠 Home node -->
+    <circle cx="180" cy="163" r="40" fill="var(--card)" stroke="var(--home)" stroke-width="2.5"/>
+    <text x="180" y="156" text-anchor="middle" font-size="16">🏠</text>
+    <text x="180" y="171" text-anchor="middle" fill="var(--text)"  font-size="13" font-weight="700" id="sv-load-w">--</text>
+    <text x="180" y="183" text-anchor="middle" fill="var(--muted)" font-size="8.5">LOAD</text>
+
+    <!-- 🔋 Battery node -->
+    <circle cx="72" cy="262" r="37" fill="var(--card)" stroke="var(--battery)" stroke-width="2.5"/>
+    <!-- row 1: emoji + SOC -->
+    <text x="60"  y="244" text-anchor="middle" dominant-baseline="middle" font-size="15">🔋</text>
+    <text x="69"  y="244" text-anchor="start"  dominant-baseline="middle" fill="var(--muted)" font-size="10" font-weight="700" id="sv-soc">--%</text>
+    <!-- row 2: arrow + watts -->
+    <text id="sv-batt-arrow" x="40" y="262" text-anchor="start"  dominant-baseline="middle" fill="var(--battery)" font-size="16" font-weight="700"></text>
+    <text id="sv-batt-w"     x="72" y="262" text-anchor="middle" dominant-baseline="middle" fill="var(--battery)" font-size="13" font-weight="700">--W</text>
+    <!-- row 3: health icon + % -->
+    <g id="sv-bhealth-grp" style="display:none;cursor:help"><title>Battery Health</title>
+      <rect x="59" y="279" width="10" height="8"   rx="1.5" fill="#dc2626"/>
+      <rect x="62" y="276.5" width="4" height="2.5" rx="0.8" fill="none" stroke="#dc2626" stroke-width="1.1"/>
+      <rect x="60.5" y="282" width="7" height="1.5" rx="0.3" fill="white"/>
+      <rect x="63.3" y="279.5" width="1.5" height="6" rx="0.3" fill="white"/>
+      <text id="sv-bhealth" x="71" y="283" text-anchor="start" dominant-baseline="middle" fill="var(--muted)" font-size="8"></text>
+    </g>
+
+    <!-- ⚡ Grid node -->
+    <circle cx="288" cy="262" r="37" fill="var(--card)" stroke="var(--grid)" stroke-width="2.5"/>
+    <text x="288" y="244" text-anchor="middle" dominant-baseline="middle" font-size="15">⚡</text>
+    <text id="sv-grid-arrow" x="256" y="262" text-anchor="start"  dominant-baseline="middle" fill="var(--grid)" font-size="16" font-weight="700"></text>
+    <text x="288" y="262" text-anchor="middle" dominant-baseline="middle" fill="var(--grid)" font-size="13" font-weight="700" id="sv-grid-w">--</text>
+    <text x="288" y="283" text-anchor="middle" dominant-baseline="middle" fill="var(--muted)" font-size="8.5">GRID</text>
+
+  </svg>
+</div>
+
+<div class="analytics-card">
+  <div class="analytics-header">
+    <div class="atabs">
+      <button class="atab active" data-period="day">Day</button>
+      <button class="atab" data-period="month">Month</button>
+      <button class="atab" data-period="year">Year</button>
+    </div>
+    <div class="date-nav-wrap">
+      <div class="date-nav">
+        <button id="btn-date-prev" class="date-nav-btn">‹</button>
+        <div class="date-nav-sep"></div>
+        <button id="date-display"></button>
+        <div class="date-nav-sep"></div>
+        <button id="btn-date-next" class="date-nav-btn">›</button>
+      </div>
+      <div id="date-picker" class="date-picker-popup">
+        <div class="dp-header">
+          <button id="dp-prev" class="dp-nav-btn">‹</button>
+          <span id="dp-title"></span>
+          <button id="dp-next" class="dp-nav-btn">›</button>
+        </div>
+        <div id="dp-grid" class="dp-grid"></div>
+        <div class="dp-footer"><button id="dp-today">Today</button></div>
+      </div>
+    </div>
+  </div>
+  <canvas id="history-canvas" width="900" height="220"></canvas>
+  <div class="history-bottom">
+    <div class="history-legend">
+      <button class="series-toggle active" data-key="solar_w">Solar</button>
+      <button class="series-toggle active" data-key="load_w">Consumption</button>
+      <button class="series-toggle active" data-key="grid_w">Grid</button>
+      <button class="series-toggle active" data-key="battery_w">Battery</button>
+    </div>
+  </div>
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-lbl" style="color:var(--solar)">☀️ Solar</div>
+      <div><span class="stat-val" id="st-solar" style="color:var(--solar)">--</span><span class="stat-unit">kWh</span></div>
+    </div>
+    <div class="stat">
+      <div class="stat-lbl" style="color:var(--home)">🏠 Consumption</div>
+      <div><span class="stat-val" id="st-load" style="color:var(--home)">--</span><span class="stat-unit">kWh</span></div>
+    </div>
+    <div class="stat">
+      <div class="stat-lbl" style="color:var(--grid)">⬇️ Imported</div>
+      <div><span class="stat-val" id="st-import" style="color:var(--grid)">--</span><span class="stat-unit">kWh</span></div>
+    </div>
+    <div class="stat">
+      <div class="stat-lbl" style="color:var(--grid)">⬆️ Exported</div>
+      <div><span class="stat-val" id="st-export" style="color:var(--grid)">--</span><span class="stat-unit">kWh</span></div>
+    </div>
+    <div class="stat">
+      <div class="stat-lbl" style="color:var(--battery)">🔋 Charged</div>
+      <div><span class="stat-val" id="st-bcharged" style="color:var(--battery)">--</span><span class="stat-unit">kWh</span></div>
+    </div>
+    <div class="stat">
+      <div class="stat-lbl" style="color:var(--battery)">🔋 Discharged</div>
+      <div><span class="stat-val" id="st-bdischarged" style="color:var(--battery)">--</span><span class="stat-unit">kWh</span></div>
+    </div>
+  </div>
+  <div id="history-status"></div>
+</div>
+
+
+<script>
+  // ── Helpers ──────────────────────────────────────────────
+  const $ = (id) => document.getElementById(id);
+
+  // Build API base from current route.
+  // When opened via AppHub under /fluxsolar, API is proxied at /fluxsolar/api.
+  const routePrefix = window.location.pathname.startsWith('/fluxsolar') ? '/fluxsolar' : '';
+  const apiBase = window.location.origin + routePrefix;
+  const API = {
+    data:    apiBase + '/api/data',
+    profile: apiBase + '/api/profile',
+    profiles: apiBase + '/api/profiles',
+    ports:   apiBase + '/api/ports',
+    history: apiBase + '/api/history',
+    totals:  apiBase + '/api/totals',
+    events:  apiBase + '/events',
+  };
+
+
+
+  function parseJsonOrThrow(response) {
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      throw new Error(`Unexpected response (${response.status} ${response.statusText})`);
+    }
+    return response.json();
+  }
+
+  function fmt(v, dec) {
+    if (v == null || isNaN(v)) return '--';
+    return Number(v).toLocaleString('en', {
+      minimumFractionDigits: dec ?? 0,
+      maximumFractionDigits: dec ?? 0,
+    });
+  }
+
+  const historyState = {
+    range: 'day',
+    date: '',
+    buckets: [],
+    timer: null,
+  };
+
+  const chartState = {
+    plot: null, yMin: 0, yMax: 100,
+    snapshot: null, buckets: [], allBuckets: [], dpr: 1, cssW: 900,
+  };
+
+  const zoomState = { start: 0, end: -1 };
+
+  function resetZoom() { zoomState.start = 0; zoomState.end = -1; }
+
+  const chartVisible = { solar_w: true, load_w: true, grid_w: true, battery_w: true };
+
+  function fmtBucketTime(ts, range) {
+    if (ts == null) return '';
+    const ms = typeof ts === 'number' && ts < 1e12 ? ts * 1000 : Number(ts);
+    const d = new Date(ms);
+    if (isNaN(d)) return String(ts);
+    if (range === 'day')   return d.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit', hour12: false });
+    if (range === 'month') return d.toLocaleDateString('en', { month: 'short', day: 'numeric' });
+    return d.toLocaleDateString('en', { month: 'short', year: 'numeric' });
+  }
+
+  function drawTooltip(ctx, x, bucket, plot, range) {
+    const series = [
+      { key: 'solar_w',   color: '#f59e0b', label: 'Solar' },
+      { key: 'load_w',    color: '#60a5fa', label: 'Load'  },
+      { key: 'grid_w',    color: '#818cf8', label: 'Grid'  },
+      { key: 'battery_w', color: '#34d399', label: 'Batt'  },
+    ];
+    const lines = series.filter(s => chartVisible[s.key] && bucket[s.key] != null && Number.isFinite(bucket[s.key]));
+    if (!lines.length) return;
+
+    const timeStr = fmtBucketTime(bucket.ts, range);
+    const PAD = 9, LH = 15;
+    const boxW = 130;
+    const boxH = PAD * 2 + (timeStr ? LH + 4 : 0) + lines.length * LH;
+
+    let bx = x + 14;
+    if (bx + boxW > plot.x + plot.w + 4) bx = x - boxW - 14;
+    const by = Math.max(plot.y + 2, Math.min(plot.y + plot.h - boxH - 2, plot.y + (plot.h - boxH) / 2));
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(10,18,36,0.93)';
+    ctx.strokeStyle = 'rgba(51,65,85,0.85)';
+    ctx.lineWidth = 1;
+    const r = 7;
+    ctx.beginPath();
+    ctx.moveTo(bx + r, by); ctx.lineTo(bx + boxW - r, by);
+    ctx.quadraticCurveTo(bx + boxW, by, bx + boxW, by + r);
+    ctx.lineTo(bx + boxW, by + boxH - r);
+    ctx.quadraticCurveTo(bx + boxW, by + boxH, bx + boxW - r, by + boxH);
+    ctx.lineTo(bx + r, by + boxH);
+    ctx.quadraticCurveTo(bx, by + boxH, bx, by + boxH - r);
+    ctx.lineTo(bx, by + r);
+    ctx.quadraticCurveTo(bx, by, bx + r, by);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+
+    let ty = by + PAD + 10;
+    if (timeStr) {
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '600 9.5px system-ui, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(timeStr, bx + PAD, ty);
+      ty += LH + 4;
+    }
+    for (const s of lines) {
+      ctx.beginPath();
+      ctx.arc(bx + PAD + 3.5, ty - 3.5, 3, 0, Math.PI * 2);
+      ctx.fillStyle = s.color; ctx.fill();
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '10.5px system-ui, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(s.label, bx + PAD + 11, ty);
+      const v = bucket[s.key];
+      ctx.fillStyle = '#f1f5f9';
+      ctx.font = '600 10.5px system-ui, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText((v > 0 ? '+' : '') + fmt(v) + ' W', bx + boxW - PAD, ty);
+      ty += LH;
+    }
+    ctx.restore();
+  }
+
+  function toDateInputValue(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  function getHistoryLabel(range, date) {
+    if (range === 'day') return `Day view (${date.replace(/-/g, '/')}) · 1-minute average`;
+    if (range === 'month') return `Month view (${date.slice(0, 7).replace(/-/g, '/')}) · 1-hour average`;
+    return `Year view (${date.slice(0, 4)}) · 1-day average`;
+  }
+
+  function drawArea(ctx, plot, buckets, key, color, yMin, yMax, zeroY) {
+    const pts = [];
+    for (let i = 0; i < buckets.length; i++) {
+      const v = buckets[i][key];
+      if (v == null || !Number.isFinite(v)) continue;
+      pts.push({
+        x: plot.x + (i / Math.max(1, buckets.length - 1)) * plot.w,
+        y: plot.y + (1 - ((v - yMin) / Math.max(1e-9, yMax - yMin))) * plot.h,
+      });
+    }
+    if (!pts.length) return;
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, zeroY);
+    for (const p of pts) ctx.lineTo(p.x, p.y);
+    ctx.lineTo(pts[pts.length - 1].x, zeroY);
+    ctx.closePath();
+    ctx.save();
+    ctx.globalAlpha = 0.13;
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawSeries(ctx, plot, buckets, key, color, yMin, yMax) {
+    let started = false;
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 0.8;
+    for (let i = 0; i < buckets.length; i++) {
+      const v = buckets[i][key];
+      if (v == null || Number.isNaN(v)) {
+        started = false;
+        continue;
+      }
+      const x = plot.x + (i / Math.max(1, buckets.length - 1)) * plot.w;
+      const y = plot.y + (1 - ((v - yMin) / Math.max(1e-9, yMax - yMin))) * plot.h;
+      if (!started) {
+        ctx.moveTo(x, y);
+        started = true;
+      } else {
+        ctx.lineTo(x, y);
+      }
+    }
+    ctx.stroke();
+  }
+
+  function drawXLabels(ctx, plot, buckets, range) {
+    if (!buckets || !buckets.length) return;
+    const labelY = plot.y + plot.h + 14;
+    const minSpacing = range === 'year' ? 26 : range === 'month' ? 18 : 34;
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    let lastX = -Infinity;
+
+    for (let i = 0; i < buckets.length; i++) {
+      const b = buckets[i];
+      if (!b.ts) continue;
+      const ms = typeof b.ts === 'number' ? (b.ts < 1e12 ? b.ts * 1000 : b.ts) : Number(new Date(b.ts));
+      if (isNaN(ms)) continue;
+      const d = new Date(ms);
+
+      let label = null;
+      if (range === 'day') {
+        if (d.getMinutes() === 0 && d.getHours() % 2 === 0)
+          label = String(d.getHours()).padStart(2, '0') + 'h';
+      } else if (range === 'month') {
+        if (d.getHours() === 0)
+          label = d.getDate().toString();
+      } else {
+        if (d.getDate() === 1)
+          label = MONTHS[d.getMonth()];
+      }
+      if (!label) continue;
+
+      const x = plot.x + (i / Math.max(1, buckets.length - 1)) * plot.w;
+      if (x - lastX < minSpacing) continue;
+
+      ctx.strokeStyle = 'rgba(148,163,184,0.2)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, plot.y + plot.h + 1);
+      ctx.lineTo(x, plot.y + plot.h + 5);
+      ctx.stroke();
+
+      ctx.fillStyle = '#64748b';
+      ctx.font = '10px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(label, x, labelY);
+      lastX = x;
+    }
+    ctx.textAlign = 'left';
+  }
+
+  function drawHistoryChart(allBuckets) {
+    const canvas = $('history-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return;
+
+    chartState.allBuckets = allBuckets || [];
+
+    // Apply zoom window
+    const total = allBuckets ? allBuckets.length : 0;
+    const zEnd = zoomState.end < 0 ? total - 1 : Math.min(zoomState.end, total - 1);
+    const buckets = total > 0 ? allBuckets.slice(zoomState.start, zEnd + 1) : [];
+    const isZoomed = zoomState.start > 0 || (zoomState.end >= 0 && zoomState.end < total - 1);
+
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = canvas.clientWidth || 900;
+    const cssH = canvas.clientHeight || 220;
+    canvas.width = Math.floor(cssW * dpr);
+    canvas.height = Math.floor(cssH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    ctx.clearRect(0, 0, cssW, cssH);
+    ctx.fillStyle = '#0b1220';
+    ctx.fillRect(0, 0, cssW, cssH);
+
+    if (!buckets || buckets.length === 0) {
+      chartState.snapshot = null; chartState.plot = null;
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '12px system-ui, sans-serif';
+      ctx.fillText('No history data for selected period', 14, 24);
+      return;
+    }
+
+    const values = [];
+    for (const b of buckets) {
+      for (const k of ['solar_w', 'load_w', 'grid_w', 'battery_w']) {
+        if (chartVisible[k] && b[k] != null && Number.isFinite(b[k])) values.push(Number(b[k]));
+      }
+    }
+    if (values.length === 0) {
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '12px system-ui, sans-serif';
+      ctx.fillText('No valid points in selected period', 14, 24);
+      return;
+    }
+
+    const absMax = Math.max(100, ...values.map(v => Math.abs(v)));
+    const yMax = Math.ceil(absMax / 100) * 100;
+    const yMin = -yMax;
+    const plot = { x: 44, y: 10, w: cssW - 56, h: cssH - 46 };
+
+    ctx.strokeStyle = 'rgba(148,163,184,0.18)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const y = plot.y + (i / 4) * plot.h;
+      ctx.beginPath();
+      ctx.moveTo(plot.x, y);
+      ctx.lineTo(plot.x + plot.w, y);
+      ctx.stroke();
+    }
+
+    const zeroY = plot.y + (1 - ((0 - yMin) / (yMax - yMin))) * plot.h;
+    ctx.strokeStyle = 'rgba(148,163,184,0.45)';
+    ctx.beginPath();
+    ctx.moveTo(plot.x, zeroY);
+    ctx.lineTo(plot.x + plot.w, zeroY);
+    ctx.stroke();
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '11px system-ui, sans-serif';
+    ctx.fillText(fmt(yMax) + 'W', 4, plot.y + 10);
+    ctx.fillText('0W', 12, zeroY + 4);
+    ctx.fillText('-' + fmt(yMax) + 'W', 2, plot.y + plot.h - 2);
+
+    if (chartVisible.solar_w)   drawSeries(ctx, plot, buckets, 'solar_w',   '#f59e0b', yMin, yMax);
+    if (chartVisible.load_w)    drawSeries(ctx, plot, buckets, 'load_w',    '#60a5fa', yMin, yMax);
+    if (chartVisible.grid_w)    drawSeries(ctx, plot, buckets, 'grid_w',    '#818cf8', yMin, yMax);
+    if (chartVisible.battery_w) drawSeries(ctx, plot, buckets, 'battery_w', '#34d399', yMin, yMax);
+
+    drawXLabels(ctx, plot, buckets, historyState.range);
+
+    if (isZoomed) {
+      ctx.fillStyle = 'rgba(148,163,184,0.5)';
+      ctx.font = '10px system-ui, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText('↩ double-click to reset zoom', plot.x + plot.w, plot.y + 12);
+      ctx.textAlign = 'left';
+    }
+
+    chartState.plot = plot; chartState.yMin = yMin; chartState.yMax = yMax;
+    chartState.buckets = buckets; chartState.dpr = dpr; chartState.cssW = cssW;
+    chartState.snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  }
+
+  function normalizeBuckets(raw) {
+    return (raw || []).map((b) => ({
+      ts: b.ts,
+      solar_w: b.solar_w == null ? null : Number(b.solar_w),
+      load_w: b.load_w == null ? null : Number(b.load_w),
+      grid_w: b.grid_w == null ? null : Number(b.grid_w),
+      battery_w: b.battery_w == null ? null : Number(b.battery_w),
+    }));
+  }
+
+  function setupHistoryAutoRefresh() {
+    if (historyState.timer) clearInterval(historyState.timer);
+    historyState.timer = setInterval(() => {
+      const today = toDateInputValue(new Date());
+      if (historyState.range === 'day' && historyState.date === today && !document.hidden) {
+        loadHistory();
+      }
+    }, 60000);
+  }
+
+  function loadHistory() {
+    resetZoom();
+    const status = $('history-status');
+    status.textContent = 'Loading history...';
+    fetch(`${API.history}?range=${encodeURIComponent(historyState.range)}&date=${encodeURIComponent(historyState.date)}`)
+      .then((r) => {
+        if (!r.ok) {
+          return parseJsonOrThrow(r).then((d) => {
+            throw new Error(d.error || ('HTTP ' + r.status));
+          });
+        }
+        return parseJsonOrThrow(r);
+      })
+      .then((res) => {
+        const buckets = normalizeBuckets(res.buckets);
+        historyState.buckets = buckets;
+        drawHistoryChart(buckets);
+        status.textContent = `${getHistoryLabel(historyState.range, historyState.date)} · ${buckets.length} points`;
+      })
+      .catch((err) => {
+        drawHistoryChart([]);
+        status.textContent = 'History error: ' + err.message;
+      });
+  }
+
+  let pickerViewDate = null;
+
+  function updateDateDisplay() {
+    const d = historyState.date;
+    const range = historyState.range;
+    $('date-display').textContent =
+      range === 'day'   ? d.replace(/-/g, '/') :
+      range === 'month' ? d.slice(0, 7).replace(/-/g, '/') :
+                          d.slice(0, 4);
+    const today = toDateInputValue(new Date());
+    const atOrPastToday =
+      range === 'day'   ? d >= today :
+      range === 'month' ? d.slice(0, 7) >= today.slice(0, 7) :
+                          d.slice(0, 4) >= today.slice(0, 4);
+    $('btn-date-next').disabled = atOrPastToday;
+  }
+
+  function navigateDate(dir) {
+    const range = historyState.range;
+    const cur = new Date(historyState.date + 'T00:00:00');
+    if (range === 'day')        cur.setDate(cur.getDate() + dir);
+    else if (range === 'month') cur.setMonth(cur.getMonth() + dir);
+    else                        cur.setFullYear(cur.getFullYear() + dir);
+    historyState.date = toDateInputValue(cur);
+    updateDateDisplay();
+    loadHistory();
+    loadTotals();
+  }
+
+  function renderDatePicker() {
+    const range = historyState.range;
+    const today = toDateInputValue(new Date());
+    const selected = historyState.date;
+    const view = new Date(pickerViewDate + 'T00:00:00');
+    const title = $('dp-title');
+    const grid = $('dp-grid');
+    grid.innerHTML = '';
+
+    if (range === 'day') {
+      title.textContent = view.toLocaleDateString('en', { month: 'long', year: 'numeric' });
+      grid.className = 'dp-grid dp-days';
+      for (const h of ['Su','Mo','Tu','We','Th','Fr','Sa']) {
+        const el = document.createElement('span');
+        el.className = 'dp-dow';
+        el.textContent = h;
+        grid.appendChild(el);
+      }
+      const first = new Date(view.getFullYear(), view.getMonth(), 1);
+      const last  = new Date(view.getFullYear(), view.getMonth() + 1, 0);
+      for (let i = 0; i < first.getDay(); i++) {
+        const el = document.createElement('span');
+        el.className = 'dp-cell empty';
+        grid.appendChild(el);
+      }
+      for (let d = 1; d <= last.getDate(); d++) {
+        const iso = `${view.getFullYear()}-${String(view.getMonth()+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const el = document.createElement('button');
+        el.className = 'dp-cell' + (iso === selected ? ' selected' : '') + (iso === today ? ' today' : '');
+        if (iso > today) el.disabled = true;
+        el.textContent = d;
+        el.addEventListener('click', () => { historyState.date = iso; updateDateDisplay(); loadHistory(); loadTotals(); closeDatePicker(); });
+        grid.appendChild(el);
+      }
+    } else if (range === 'month') {
+      title.textContent = view.getFullYear();
+      grid.className = 'dp-grid dp-months';
+      const todayM = today.slice(0, 7);
+      const selM   = selected.slice(0, 7);
+      for (let m = 0; m < 12; m++) {
+        const iso  = `${view.getFullYear()}-${String(m+1).padStart(2,'0')}-01`;
+        const key  = iso.slice(0, 7);
+        const el   = document.createElement('button');
+        el.className = 'dp-cell' + (key === selM ? ' selected' : '') + (key === todayM ? ' today' : '');
+        if (key > todayM) el.disabled = true;
+        el.textContent = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m];
+        el.addEventListener('click', () => { historyState.date = iso; updateDateDisplay(); loadHistory(); loadTotals(); closeDatePicker(); });
+        grid.appendChild(el);
+      }
+    } else {
+      const decade = Math.floor(view.getFullYear() / 10) * 10;
+      title.textContent = `${decade} – ${decade + 9}`;
+      grid.className = 'dp-grid dp-years';
+      const todayY = today.slice(0, 4);
+      const selY   = selected.slice(0, 4);
+      for (let y = decade; y <= decade + 9; y++) {
+        const iso = `${y}-01-01`;
+        const el  = document.createElement('button');
+        el.className = 'dp-cell' + (String(y) === selY ? ' selected' : '') + (String(y) === todayY ? ' today' : '');
+        if (y > parseInt(todayY)) el.disabled = true;
+        el.textContent = y;
+        el.addEventListener('click', () => { historyState.date = iso; updateDateDisplay(); loadHistory(); loadTotals(); closeDatePicker(); });
+        grid.appendChild(el);
+      }
+    }
+  }
+
+  function pickerNavigate(dir) {
+    const range = historyState.range;
+    const cur = new Date(pickerViewDate + 'T00:00:00');
+    if (range === 'day')        cur.setMonth(cur.getMonth() + dir);
+    else if (range === 'month') cur.setFullYear(cur.getFullYear() + dir);
+    else                        cur.setFullYear(cur.getFullYear() + dir * 10);
+    pickerViewDate = toDateInputValue(cur);
+    renderDatePicker();
+  }
+
+  function openDatePicker() {
+    pickerViewDate = historyState.date;
+    renderDatePicker();
+    $('date-picker').classList.add('open');
+  }
+
+  function closeDatePicker() {
+    $('date-picker').classList.remove('open');
+  }
+
+  function initHistory() {
+    const today = toDateInputValue(new Date());
+    historyState.date = today;
+    historyState.range = 'day';
+    updateDateDisplay();
+
+    $('btn-date-prev').addEventListener('click', () => navigateDate(-1));
+    $('btn-date-next').addEventListener('click', () => navigateDate(1));
+    $('date-display').addEventListener('click', (e) => { e.stopPropagation(); $('date-picker').classList.contains('open') ? closeDatePicker() : openDatePicker(); });
+    $('dp-prev').addEventListener('click', () => pickerNavigate(-1));
+    $('dp-next').addEventListener('click', () => pickerNavigate(1));
+    $('dp-today').addEventListener('click', () => { historyState.date = toDateInputValue(new Date()); updateDateDisplay(); loadHistory(); loadTotals(); closeDatePicker(); });
+    document.addEventListener('click', (e) => { if (!e.target.closest('.date-nav-wrap')) closeDatePicker(); });
+
+    document.querySelectorAll('.atab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.atab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        historyState.range = btn.dataset.period;
+        resetZoom();
+        closeDatePicker();
+        updateDateDisplay();
+        loadHistory();
+        loadTotals();
+      });
+    });
+
+    window.addEventListener('resize', () => drawHistoryChart(historyState.buckets));
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) { loadHistory(); loadTotals(); }
+    });
+
+    document.querySelectorAll('.series-toggle').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.key;
+        chartVisible[key] = !chartVisible[key];
+        btn.classList.toggle('active', chartVisible[key]);
+        drawHistoryChart(historyState.buckets);
+      });
+    });
+
+    setupHistoryAutoRefresh();
+    loadHistory();
+    initChartHover();
+  }
+
+  function drawHoverOverlay(cssX) {
+    const { plot, snapshot, buckets, dpr, yMin, yMax } = chartState;
+    if (!plot || !snapshot || !buckets.length) return;
+    const ctx = $('history-canvas').getContext('2d', { willReadFrequently: true });
+    ctx.putImageData(snapshot, 0, 0);
+    if (cssX < plot.x || cssX > plot.x + plot.w) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const frac = Math.max(0, Math.min(1, (cssX - plot.x) / plot.w));
+    const idx = Math.round(frac * (buckets.length - 1));
+    const bucket = buckets[idx];
+    if (!bucket) return;
+    const x = plot.x + (idx / Math.max(1, buckets.length - 1)) * plot.w;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(148,163,184,0.3)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(x, plot.y); ctx.lineTo(x, plot.y + plot.h);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+    for (const s of [
+      { key: 'solar_w', color: '#f59e0b' }, { key: 'load_w', color: '#60a5fa' },
+      { key: 'grid_w', color: '#818cf8' },  { key: 'battery_w', color: '#34d399' },
+    ]) {
+      const v = bucket[s.key];
+      if (!chartVisible[s.key] || v == null || !Number.isFinite(v)) continue;
+      const y = plot.y + (1 - ((v - yMin) / Math.max(1e-9, yMax - yMin))) * plot.h;
+      ctx.beginPath(); ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = s.color; ctx.fill();
+      ctx.strokeStyle = '#0b1220'; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+    drawTooltip(ctx, x, bucket, plot, historyState.range);
+  }
+
+  function initChartHover() {
+    const canvas = $('history-canvas');
+    canvas.style.cursor = 'crosshair';
+
+    let isDragging = false;
+    let dragStartX = 0;
+    let dragSnapStart = 0, dragSnapEnd = -1;
+    let touchStartDist = 0, touchSnapStart = 0, touchSnapEnd = -1, touchSnapCenter = 0;
+
+    // ── Wheel zoom ──────────────────────────────────────────
+    canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const all = chartState.allBuckets;
+      if (!all.length || !chartState.plot) return;
+      const total = all.length;
+      const curEnd = zoomState.end < 0 ? total - 1 : zoomState.end;
+      const curRange = curEnd - zoomState.start + 1;
+      const rect = canvas.getBoundingClientRect();
+      const frac = Math.max(0, Math.min(1, (e.clientX - rect.left - chartState.plot.x) / chartState.plot.w));
+      const factor = e.deltaY > 0 ? 1.35 : 1 / 1.35;
+      const newRange = Math.max(10, Math.min(total, Math.round(curRange * factor)));
+      const center = zoomState.start + frac * (curRange - 1);
+      let ns = Math.round(center - frac * (newRange - 1));
+      let ne = ns + newRange - 1;
+      if (ns < 0) { ns = 0; ne = newRange - 1; }
+      if (ne >= total) { ne = total - 1; ns = Math.max(0, ne - newRange + 1); }
+      zoomState.start = ns;
+      zoomState.end = ne >= total - 1 ? -1 : ne;
+      drawHistoryChart(all);
+    }, { passive: false });
+
+    // ── Double-click reset ──────────────────────────────────
+    canvas.addEventListener('dblclick', () => {
+      resetZoom();
+      drawHistoryChart(chartState.allBuckets);
+    });
+
+    // ── Mouse drag pan ──────────────────────────────────────
+    canvas.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      dragStartX = e.clientX;
+      dragSnapStart = zoomState.start;
+      dragSnapEnd   = zoomState.end;
+      canvas.style.cursor = 'grabbing';
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const cssX = e.clientX - rect.left;
+      if (isDragging) {
+        const all = chartState.allBuckets;
+        if (!all.length || !chartState.plot) return;
+        const total = all.length;
+        const snapEnd = dragSnapEnd < 0 ? total - 1 : dragSnapEnd;
+        const range = snapEnd - dragSnapStart;
+        const shift = Math.round(-(e.clientX - dragStartX) * range / chartState.plot.w);
+        let ns = dragSnapStart + shift, ne = ns + range;
+        if (ns < 0) { ns = 0; ne = range; }
+        if (ne >= total) { ne = total - 1; ns = Math.max(0, ne - range); }
+        zoomState.start = ns;
+        zoomState.end = ne >= total - 1 ? -1 : ne;
+        drawHistoryChart(all);
+      } else {
+        drawHoverOverlay(cssX);
+      }
+    });
+
+    canvas.addEventListener('mouseup',    () => { isDragging = false; canvas.style.cursor = 'crosshair'; });
+    canvas.addEventListener('mouseleave', () => {
+      isDragging = false;
+      canvas.style.cursor = 'crosshair';
+      const { snapshot } = chartState;
+      if (snapshot) $('history-canvas').getContext('2d', { willReadFrequently: true }).putImageData(snapshot, 0, 0);
+    });
+
+    // ── Touch: tap = tooltip fixo, swipe = pan, pinch = zoom ─
+    let touchMoved = false;
+
+    canvas.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      if (e.touches.length === 1) {
+        touchMoved    = false;
+        dragStartX    = e.touches[0].clientX;
+        dragSnapStart = zoomState.start;
+        dragSnapEnd   = zoomState.end;
+      } else if (e.touches.length === 2) {
+        isDragging = false;
+        touchMoved = true;
+        const dx = e.touches[1].clientX - e.touches[0].clientX;
+        touchStartDist = Math.abs(dx);
+        touchSnapStart = zoomState.start;
+        touchSnapEnd   = zoomState.end;
+        const all = chartState.allBuckets;
+        const total = all.length;
+        const snapEnd = touchSnapEnd < 0 ? total - 1 : touchSnapEnd;
+        const rect = canvas.getBoundingClientRect();
+        const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const frac  = Math.max(0, Math.min(1, (midX - rect.left - (chartState.plot?.x || 0)) / (chartState.plot?.w || 1)));
+        touchSnapCenter = touchSnapStart + frac * (snapEnd - touchSnapStart);
+      }
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      const all = chartState.allBuckets;
+      if (!all.length || !chartState.plot) return;
+      const total = all.length;
+      if (e.touches.length === 1) {
+        const dx = Math.abs(e.touches[0].clientX - dragStartX);
+        if (dx > 8) touchMoved = true;
+        if (touchMoved) {
+          // pan
+          const snapEnd = dragSnapEnd < 0 ? total - 1 : dragSnapEnd;
+          const range = snapEnd - dragSnapStart;
+          const shift = Math.round(-(e.touches[0].clientX - dragStartX) * range / chartState.plot.w);
+          let ns = dragSnapStart + shift, ne = ns + range;
+          if (ns < 0) { ns = 0; ne = range; }
+          if (ne >= total) { ne = total - 1; ns = Math.max(0, ne - range); }
+          zoomState.start = ns;
+          zoomState.end = ne >= total - 1 ? -1 : ne;
+          drawHistoryChart(all);
+        } else {
+          // preview tooltip while holding still
+          const rect = canvas.getBoundingClientRect();
+          drawHoverOverlay(e.touches[0].clientX - rect.left);
+        }
+      } else if (e.touches.length === 2) {
+        const dist = Math.abs(e.touches[1].clientX - e.touches[0].clientX);
+        const snapEnd = touchSnapEnd < 0 ? total - 1 : touchSnapEnd;
+        const snapRange = snapEnd - touchSnapStart + 1;
+        const newRange = Math.max(10, Math.min(total, Math.round(snapRange * touchStartDist / Math.max(1, dist))));
+        const rect = canvas.getBoundingClientRect();
+        const midX  = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const frac   = Math.max(0, Math.min(1, (midX - rect.left - chartState.plot.x) / chartState.plot.w));
+        let ns = Math.round(touchSnapCenter - frac * (newRange - 1));
+        let ne = ns + newRange - 1;
+        if (ns < 0) { ns = 0; ne = newRange - 1; }
+        if (ne >= total) { ne = total - 1; ns = Math.max(0, ne - newRange + 1); }
+        zoomState.start = ns;
+        zoomState.end = ne >= total - 1 ? -1 : ne;
+        drawHistoryChart(all);
+      }
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', (e) => {
+      if (!touchMoved && e.changedTouches.length === 1) {
+        // tap: pin tooltip at this position
+        const rect = canvas.getBoundingClientRect();
+        drawHoverOverlay(e.changedTouches[0].clientX - rect.left);
+      } else if (touchMoved && chartState.snapshot) {
+        // swipe ended: restore clean chart
+        $('history-canvas').getContext('2d', { willReadFrequently: true }).putImageData(chartState.snapshot, 0, 0);
+      }
+      isDragging  = false;
+      touchMoved  = false;
+    });
+  }
+
+  // ── Flow line animation ───────────────────────────────────
+  // 'fwd' = power flows in forward direction (source → sink along the drawn line)
+  // 'rev' = reverse direction
+  function setLine(id, state) {  // state: 'fwd' | 'rev' | 'off'
+    const el = $(id);
+    if (!el) return;
+    el.classList.remove('fwd', 'rev');
+    if (state === 'fwd' || state === 'rev') el.classList.add(state);
+  }
+
+  const flowState = {
+    lastTs: 0,
+    progress: { solar: 0, battery: 0, grid: 0 },
+    latest: { solarW: 0, battW: 0, gridW: 0 },
+  };
+
+  function speedFromPower(power, threshold) {
+    const p = Math.abs(Number(power || 0));
+    if (p <= threshold) return 0;
+    const norm = Math.min(p, 5000) / 5000;
+    return 0.22 + norm * 1.5; // cycles/second
+  }
+
+  function setParticle(id, x1, y1, x2, y2, t, opacity, r) {
+    const el = $(id);
+    if (!el) return;
+    el.setAttribute('cx', (x1 + (x2 - x1) * t).toFixed(2));
+    el.setAttribute('cy', (y1 + (y2 - y1) * t).toFixed(2));
+    el.setAttribute('r', r.toFixed(2));
+    el.style.opacity = opacity > 0 ? String(opacity) : '0';
+  }
+
+  function particleCountFromPower(power, threshold) {
+    const p = Math.abs(Number(power || 0));
+    if (p <= threshold) return 0;
+    if (p <= threshold * 6) return 1;
+    if (p <= threshold * 16) return 2;
+    return 3;
+  }
+
+  function renderFlowParticles(prefix, x1, y1, x2, y2, progress, count, reverse) {
+    const offsets = [0, 0.33, 0.66];
+    for (let i = 0; i < 3; i++) {
+      const id = `${prefix}-${i + 1}`;
+      if (i >= count) {
+        setParticle(id, x1, y1, x2, y2, 0, 0, i === 0 ? 3.4 : 2.7);
+        continue;
+      }
+      let t = (progress + offsets[i]) % 1;
+      if (reverse) t = 1 - t;
+      const opacity = i === 0 ? 0.95 : (i === 1 ? 0.7 : 0.45);
+      const tStart = reverse ? 1 - t : t;
+      const r = i === 0 ? 3.4 + (1 - tStart) * 5 : 2.7 + (1 - tStart) * 1.5;
+      setParticle(id, x1, y1, x2, y2, t, opacity, r);
+    }
+  }
+
+  function animateFlow(ts) {
+    if (!flowState.lastTs) flowState.lastTs = ts;
+    const dt = Math.max(0, (ts - flowState.lastTs) / 1000);
+    flowState.lastTs = ts;
+
+    const { solarW, battW, gridW } = flowState.latest;
+
+    flowState.progress.solar = (flowState.progress.solar + speedFromPower(solarW, 10) * dt) % 1;
+    flowState.progress.battery = (flowState.progress.battery + speedFromPower(battW, 10) * dt) % 1;
+    flowState.progress.grid = (flowState.progress.grid + speedFromPower(gridW, 50) * dt) % 1;
+
+    const solarCount = particleCountFromPower(solarW, 10);
+    const battCount = particleCountFromPower(battW, 10);
+    const gridCount = particleCountFromPower(gridW, 50);
+
+    renderFlowParticles('pt-solar', 180, 76, 180, 126, flowState.progress.solar, solarCount, false);
+    renderFlowParticles('pt-battery', 155, 193, 96, 233, flowState.progress.battery, battCount, (battW || 0) > 0);
+    renderFlowParticles('pt-grid', 205, 193, 264, 233, flowState.progress.grid, gridCount, (gridW || 0) > 0);
+
+    requestAnimationFrame(animateFlow);
+  }
+
+  // ── Port selector ───────────────────────────────────────
+  function loadPorts() {
+    fetch(API.ports)
+      .then(r => {
+        if (!r.ok) {
+          return parseJsonOrThrow(r).then(data => {
+            throw new Error(data.error || 'HTTP ' + r.status);
+          });
+        }
+        return parseJsonOrThrow(r);
+      })
+      .then(data => {
+        const select = $('port-select');
+        const current = data.current;
+        const ports = data.ports || [];
+        
+        select.innerHTML = '';
+        if (ports.length === 0) {
+          const opt = document.createElement('option');
+          opt.textContent = 'No available ports';
+          opt.disabled = true;
+          select.appendChild(opt);
+        } else {
+          ports.forEach(port => {
+            const opt = document.createElement('option');
+            opt.value = port;
+            opt.textContent = port;
+            opt.selected = port === current;
+            select.appendChild(opt);
+          });
+        }
+      })
+      .catch(err => {
+        console.error('loadPorts error:', err);
+        $('port-select').innerHTML = '<option disabled selected>Error: ' + err.message + '</option>';
+      });
+  }
+
+  $('port-select').addEventListener('change', (e) => {
+    const port = e.target.value;
+    if (!port) return;
+    fetch(API.ports, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ port }),
+    })
+      .then(r => parseJsonOrThrow(r))
+      .then(() => loadPorts())
+      .catch((err) => {
+        $('err-bar').style.display = 'block';
+        $('err-bar').textContent = '⚠️ Failed to switch UART port: ' + err.message;
+        loadPorts();
+      });
+  });
+
+  // Load ports on page load and periodically.
+  // Port list changes are rare, so keep this lightweight.
+  loadPorts();
+  setInterval(loadPorts, 30000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) loadPorts();
+  });
+  window.addEventListener('focus', loadPorts);
+
+  // ── SSE ──────────────────────────────────────────────────
+  function connect() {
+    const sse = new EventSource(API.events);
+
+    sse.onopen = () => {
+      $('dot').classList.add('on');
+    };
+
+    sse.onerror = () => {
+      $('dot').classList.remove('on');
+      sse.close();
+      setTimeout(connect, 5000);
+    };
+
+    sse.onmessage = (e) => {
+      try { render(JSON.parse(e.data)); } catch (_) {}
+    };
+  }
+
+  function render(d) {
+    const r   = d.readings || {};
+    const get = (n) => (r[n] != null ? r[n].value : null);
+
+    // Header timestamp
+    $('dot').classList.add('on');
+
+    // ── Live power values ─────────────────────────────────
+    const solarW = get('pv_total_power');
+    const gridW  = get('measured_power');
+    const battW  = get('battery_power');
+    const loadW  = get('total_consumption_power');
+    const soc    = get('battery_level');
+
+    if (solarW != null) $('sv-solar-w').textContent = fmt(solarW) + 'W';
+    if (loadW  != null) $('sv-load-w').textContent  = fmt(loadW)  + 'W';
+    if (soc    != null) $('sv-soc').textContent      = fmt(soc)    + '%';
+    if (battW  != null) {
+      $('sv-batt-w').textContent     = fmt(Math.abs(battW)) + 'W';
+      $('sv-batt-arrow').textContent = battW > 50 ? '↑' : battW < -50 ? '↓' : '';
+    }
+
+    if (gridW != null) {
+      $('sv-grid-w').textContent     = fmt(Math.abs(gridW)) + 'W';
+      $('sv-grid-arrow').textContent = gridW > 50 ? '↑' : gridW < -50 ? '↓' : '';
+    }
+
+    flowState.latest.solarW = solarW ?? 0;
+    flowState.latest.battW = battW ?? 0;
+    flowState.latest.gridW = gridW ?? 0;
+
+    // ── Animated flow lines ───────────────────────────────
+    // Solar line: always solar→home (forward when producing)
+    setLine('ln-solar', solarW > 10 ? 'fwd' : 'off');
+
+    // Battery line is drawn home→battery;
+    // For this inverter profile: battery_power < 0 = charging (home→battery = fwd)
+    // battery_power > 0 = discharging (battery→home = rev)
+    if (battW != null && Math.abs(battW) > 10) {
+      setLine('ln-battery', battW < 0 ? 'fwd' : 'rev');
+    } else {
+      setLine('ln-battery', 'off');
+    }
+
+    // Grid line is drawn home→grid;
+    // measured_power > 0 = import (grid→home = rev)
+    // measured_power < 0 = export (home→grid = fwd)
+    if (gridW != null && Math.abs(gridW) > 50) {
+      setLine('ln-grid', gridW > 0 ? 'rev' : 'fwd');
+    } else {
+      setLine('ln-grid', 'off');
+    }
+
+    // ── Battery health (only if register present) ─────────
+    const bhealth = get('battery_health');
+    if (bhealth != null) {
+      $('sv-bhealth').textContent = fmt(bhealth, 0) + '%';
+      $('sv-bhealth-grp').style.display = '';
+    }
+
+    // ── Error bar ─────────────────────────────────────────
+    const eb = $('err-bar');
+    if (d.error) {
+      eb.style.display = 'block';
+      eb.textContent   = '⚠️ ' + d.error;
+    } else {
+      eb.style.display = 'none';
+    }
+  }
+
+  function loadProfileInfo() {
+    fetch(API.profile)
+    .then(r => parseJsonOrThrow(r))
+    .then(res => {
+      const p = res.profile || {};
+    })
+    .catch(() => {});
+  }
+
+  function loadProfileSelector() {
+    Promise.all([
+      fetch(API.profiles).then(r => parseJsonOrThrow(r)),
+      fetch(API.profile).then(r => parseJsonOrThrow(r)),
+    ])
+    .then(([listRes, currentRes]) => {
+      const select = $('profile-select');
+      select.innerHTML = '';
+      const currentID = currentRes.id;
+      (listRes.profiles || []).forEach((item) => {
+        const opt = document.createElement('option');
+        opt.value = item.id;
+        opt.textContent = item.id;
+        if (item.id === currentID) opt.selected = true;
+        select.appendChild(opt);
+      });
+    })
+    .catch(() => {});
+  }
+
+  $('profile-select').addEventListener('change', (e) => {
+    const id = e.target.value;
+    if (!id) return;
+    fetch(API.profile, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
+      .then(r => parseJsonOrThrow(r))
+      .then(() => {
+        loadProfileInfo();
+        loadProfileSelector();
+      })
+      .catch((err) => {
+        $('err-bar').style.display = 'block';
+        $('err-bar').textContent = '⚠️ Failed to switch profile: ' + err.message;
+      });
+  });
+
+  // ── Profile info ─────────────────────────────────────────
+  loadProfileInfo();
+  loadProfileSelector();
+
+  fetch(apiBase + '/api/config')
+    .then(r => r.json())
+    .then(cfg => {
+      if (cfg.dev) {
+        const link = $('profiles-link');
+        link.href = routePrefix + '/profiles';
+        link.style.display = '';
+      }
+    })
+    .catch(() => {});
+  function loadTotals() {
+    fetch(API.totals + '?period=' + historyState.range + '&date=' + encodeURIComponent(historyState.date))
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (!d) return;
+        $('st-solar').textContent       = fmt(d.solar_kwh,       1);
+        $('st-load').textContent        = fmt(d.load_kwh,        1);
+        $('st-import').textContent      = fmt(d.import_kwh,      1);
+        $('st-export').textContent      = fmt(d.export_kwh,      1);
+        $('st-bcharged').textContent    = fmt(d.bcharged_kwh,    1);
+        $('st-bdischarged').textContent = fmt(d.bdischarged_kwh, 1);
+      })
+      .catch(() => {});
+  }
+
+  initHistory();
+  loadTotals();
+  setInterval(loadTotals, 5 * 60 * 1000);
+  requestAnimationFrame(animateFlow);
+
+  // ── MQTT status dot in header ─────────────────────────────
+  function refreshMQTTDot() {
+    fetch(apiBase + '/api/mqtt')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (!d) return;
+        const dot = $('mqtt-dot');
+        const cfg = d.config || {};
+        const st  = d.status || {};
+        if (!cfg.enabled)   dot.style.background = 'var(--border)';
+        else if (st.connected) dot.style.background = '#34d399';
+        else                   dot.style.background = '#f87171';
+      })
+      .catch(() => {});
+  }
+  refreshMQTTDot();
+  setInterval(refreshMQTTDot, 10000);
+
+  connect();
+
+  fetch('/api/version').then(r => r.json()).then(d => {
+    const el = document.getElementById('footer-version');
+    if (el && d.version) el.textContent = 'v' + d.version;
+  });
+</script>
+<footer>
+  <span>© 2026 FluxSolar. All rights reserved.</span>
+  <span id="footer-version"></span>
+</footer>
+</body>
+</html>

@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FluxSolar · MQTT</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <style>
+    :root {
+      --bg:     #0f172a;
+      --card:   #1e293b;
+      --border: #334155;
+      --text:   #f1f5f9;
+      --muted:  #94a3b8;
+      --solar:  #f59e0b;
+      --grid:   #818cf8;
+      --ok:     #34d399;
+      --danger: #f87171;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      padding: 0.75rem;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.65rem 1rem;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 0.875rem;
+      margin-bottom: 0.75rem;
+    }
+    header h1 { font-size: 1.05rem; font-weight: 700; }
+    .back {
+      font-size: 0.8rem;
+      color: var(--muted);
+      text-decoration: none;
+      border: 1px solid var(--border);
+      border-radius: 0.45rem;
+      padding: 0.3rem 0.75rem;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .back:hover { color: var(--text); border-color: var(--muted); }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 0.875rem;
+      padding: 1rem 1.1rem;
+      margin-bottom: 0.75rem;
+    }
+    .card-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 0.85rem;
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 0.85rem;
+      font-size: 0.82rem;
+    }
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+    .dot.on  { background: var(--ok);     box-shadow: 0 0 6px var(--ok); }
+    .dot.err { background: var(--danger); box-shadow: 0 0 6px var(--danger); }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.65rem;
+    }
+    @media (max-width: 500px) { .form-grid { grid-template-columns: 1fr; } }
+    .form-group { display: flex; flex-direction: column; gap: 0.3rem; }
+    .form-group.full { grid-column: 1 / -1; }
+    label { font-size: 0.72rem; color: var(--muted); }
+    input[type="text"], input[type="number"], input[type="password"] {
+      background: #0b1220;
+      border: 1px solid var(--border);
+      border-radius: 0.45rem;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.82rem;
+      padding: 0.42rem 0.7rem;
+      transition: border-color 0.15s;
+    }
+    input:focus { outline: none; border-color: var(--grid); }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      margin-bottom: 0.85rem;
+    }
+    .toggle {
+      position: relative;
+      width: 36px; height: 20px;
+      flex-shrink: 0;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; inset: 0;
+      background: var(--border);
+      border-radius: 20px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .slider::before {
+      content: '';
+      position: absolute;
+      width: 14px; height: 14px;
+      left: 3px; top: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+    .toggle input:checked + .slider { background: var(--ok); }
+    .toggle input:checked + .slider::before { transform: translateX(16px); }
+    .toggle-label { font-size: 0.82rem; }
+
+    .btn-row {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.9rem;
+      flex-wrap: wrap;
+    }
+    button.primary {
+      background: #1d4ed8;
+      border: none;
+      border-radius: 0.5rem;
+      color: white;
+      font-family: inherit;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 0.45rem 1.1rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    button.primary:hover { background: #2563eb; }
+    button.secondary {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 0.5rem;
+      color: var(--muted);
+      font-family: inherit;
+      font-size: 0.8rem;
+      padding: 0.45rem 1.1rem;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    button.secondary:hover { color: var(--text); border-color: var(--muted); }
+
+    #msg {
+      margin-top: 0.65rem;
+      font-size: 0.78rem;
+      min-height: 1.2em;
+      color: var(--muted);
+    }
+    #msg.ok  { color: var(--ok); }
+    #msg.err { color: var(--danger); }
+
+    .hint {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 0.55rem;
+      line-height: 1.5;
+    }
+    code {
+      background: #0b1220;
+      border: 1px solid var(--border);
+      border-radius: 0.3rem;
+      padding: 0.1em 0.35em;
+      font-size: 0.85em;
+      font-family: ui-monospace, monospace;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>MQTT · Home Assistant</h1>
+  <a class="back" href="/">← Dashboard</a>
+</header>
+
+<div class="card">
+  <div class="card-title">Connection Status</div>
+  <div class="status-row">
+    <span class="dot" id="dot"></span>
+    <span id="status-text">Checking…</span>
+  </div>
+  <div class="hint">
+    Last state published: <span id="last-sent">—</span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">Broker Settings</div>
+
+  <div class="toggle-row">
+    <label class="toggle">
+      <input type="checkbox" id="enabled">
+      <span class="slider"></span>
+    </label>
+    <span class="toggle-label">Enable MQTT</span>
+  </div>
+
+  <div class="form-grid">
+    <div class="form-group">
+      <label for="broker">Broker Host / IP</label>
+      <input type="text" id="broker" placeholder="192.168.1.x">
+    </div>
+    <div class="form-group">
+      <label for="port">Port</label>
+      <input type="number" id="port" value="1883" min="1" max="65535">
+    </div>
+    <div class="form-group">
+      <label for="username">Username (optional)</label>
+      <input type="text" id="username" placeholder="">
+    </div>
+    <div class="form-group">
+      <label for="password">Password (optional)</label>
+      <input type="password" id="password" placeholder="">
+    </div>
+    <div class="form-group">
+      <label for="client-id">Client ID</label>
+      <input type="text" id="client-id" placeholder="fluxsolar">
+    </div>
+    <div class="form-group">
+      <label for="device-name">Device Name (in HA)</label>
+      <input type="text" id="device-name" placeholder="FluxSolar">
+    </div>
+    <div class="form-group">
+      <label for="topic-prefix">State Topic Prefix</label>
+      <input type="text" id="topic-prefix" placeholder="fluxsolar">
+    </div>
+    <div class="form-group">
+      <label for="discovery-prefix">HA Discovery Prefix</label>
+      <input type="text" id="discovery-prefix" placeholder="homeassistant">
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="primary" id="btn-save">Save & Connect</button>
+    <button class="secondary" id="btn-rediscover">Re-send Discovery</button>
+  </div>
+  <div id="msg"></div>
+</div>
+
+<div class="card">
+  <div class="card-title">Home Assistant Setup</div>
+  <div class="hint">
+    Make sure <strong>MQTT integration</strong> is enabled in HA and the broker address is reachable.<br><br>
+    FluxSolar will automatically create these entities under the device <em id="hint-device">FluxSolar</em>:<br><br>
+    <code>Solar Power</code> · <code>Load Power</code> · <code>Grid Power</code> · <code>Battery Power</code> · <code>Battery SOC</code><br><br>
+    State is published to <code id="hint-topic">fluxsolar/state</code> as JSON every poll cycle (~5s).<br>
+    Discovery configs are published to <code id="hint-discovery">homeassistant/sensor/…/config</code> on each connect.
+  </div>
+</div>
+
+<script>
+  const routePrefix = window.location.pathname.startsWith('/fluxsolar') ? '/fluxsolar' : '';
+  const API_MQTT = window.location.origin + routePrefix + '/api/mqtt';
+
+  const $ = (id) => document.getElementById(id);
+
+  function setMsg(text, type) {
+    const el = $('msg');
+    el.textContent = text;
+    el.className = type || '';
+  }
+
+  function updateHints() {
+    const dev  = $('device-name').value  || 'FluxSolar';
+    const pref = $('topic-prefix').value || 'fluxsolar';
+    const disc = $('discovery-prefix').value || 'homeassistant';
+    $('hint-device').textContent    = dev;
+    $('hint-topic').textContent     = pref + '/state';
+    $('hint-discovery').textContent = disc + '/sensor/…/config';
+  }
+
+  ['device-name','topic-prefix','discovery-prefix'].forEach(id => {
+    $(id).addEventListener('input', updateHints);
+  });
+
+  function applyStatus(st, broker, port, enabled) {
+    const dot = $('dot');
+    const txt = $('status-text');
+    if (!enabled) {
+      dot.className = 'dot';
+      txt.textContent = 'Disabled';
+    } else if (st.connected) {
+      dot.className = 'dot on';
+      txt.textContent = 'Connected to ' + broker + ':' + port;
+    } else {
+      dot.className = 'dot err';
+      txt.textContent = 'Disconnected' + (st.error ? ' — ' + st.error : '');
+    }
+    $('last-sent').textContent = st.last_sent
+      ? new Date(st.last_sent).toLocaleTimeString('en', { hour12: false })
+      : '—';
+  }
+
+  // Load config once on page load — populates form fields.
+  function loadConfig() {
+    fetch(API_MQTT)
+      .then(r => r.json())
+      .then(d => {
+        const cfg = d.config || {};
+        const st  = d.status || {};
+
+        $('enabled').checked        = !!cfg.enabled;
+        $('broker').value           = cfg.broker           || '';
+        $('port').value             = cfg.port             || 1883;
+        $('username').value         = cfg.username         || '';
+        $('password').value         = cfg.password         || '';
+        $('client-id').value        = cfg.client_id        || 'fluxsolar';
+        $('device-name').value      = cfg.device_name      || 'FluxSolar';
+        $('topic-prefix').value     = cfg.topic_prefix     || 'fluxsolar';
+        $('discovery-prefix').value = cfg.discovery_prefix || 'homeassistant';
+
+        applyStatus(st, cfg.broker, cfg.port, cfg.enabled);
+        updateHints();
+      })
+      .catch(() => { $('status-text').textContent = 'Error loading config'; });
+  }
+
+  // Poll only the status — never touches form fields.
+  function pollStatus() {
+    fetch(API_MQTT)
+      .then(r => r.json())
+      .then(d => {
+        const cfg = d.config || {};
+        const st  = d.status || {};
+        applyStatus(st, cfg.broker, cfg.port, cfg.enabled);
+      })
+      .catch(() => {});
+  }
+
+  $('btn-save').addEventListener('click', () => {
+    const cfg = {
+      enabled:          $('enabled').checked,
+      broker:           $('broker').value.trim(),
+      port:             parseInt($('port').value) || 1883,
+      username:         $('username').value.trim(),
+      password:         $('password').value,
+      client_id:        $('client-id').value.trim()        || 'fluxsolar',
+      device_name:      $('device-name').value.trim()      || 'FluxSolar',
+      topic_prefix:     $('topic-prefix').value.trim()     || 'fluxsolar',
+      discovery_prefix: $('discovery-prefix').value.trim() || 'homeassistant',
+    };
+    if (cfg.enabled && !cfg.broker) {
+      setMsg('Broker host is required when MQTT is enabled.', 'err');
+      return;
+    }
+    setMsg('Saving…');
+    fetch(API_MQTT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cfg),
+    })
+      .then(r => r.json())
+      .then(d => {
+        if (d.error) { setMsg(d.error, 'err'); return; }
+        setMsg('Saved.', 'ok');
+        setTimeout(pollStatus, 1500);
+        setTimeout(() => setMsg(''), 4000);
+      })
+      .catch(err => setMsg(err.message, 'err'));
+  });
+
+  $('btn-rediscover').addEventListener('click', () => {
+    setMsg('Sending discovery…');
+    fetch(API_MQTT + '/discover', { method: 'POST' })
+      .then(r => r.json())
+      .then(d => {
+        if (d.error) { setMsg(d.error, 'err'); return; }
+        setMsg('Discovery messages sent.', 'ok');
+        setTimeout(() => setMsg(''), 3000);
+      })
+      .catch(err => setMsg(err.message, 'err'));
+  });
+
+  loadConfig();
+  setInterval(pollStatus, 5000);
+</script>
+</body>
+</html>

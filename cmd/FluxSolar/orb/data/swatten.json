@@ -1,0 +1,114 @@
+{
+  "name": "Swatten Inverter",
+  "uart": {
+    "baud_rate": 9600,
+    "data_bits": 8,
+    "parity": "none",
+    "stop_bits": 1
+  },
+  "modbus": {
+    "slave_address": 1,
+    "poll_interval_ms": 5000
+  },
+  "registers": [
+    {
+      "name": "pv_total_power",
+      "label": "PV Total Power",
+      "address": 4067,
+      "function_code": 4,
+      "value_type": "U_DWORD_R",
+      "unit": "W",
+      "multiplier": 1
+    },
+    {
+      "name": "measured_power",
+      "label": "Measured Power",
+      "address": 5401,
+      "function_code": 4,
+      "value_type": "S_WORD",
+      "unit": "W",
+      "multiplier": 1
+    },
+    {
+      "name": "solar_energy_total",
+      "label": "Solar Energy Total",
+      "address": 10003,
+      "function_code": 4,
+      "value_type": "U_DWORD_R",
+      "unit": "kWh",
+      "multiplier": 0.1
+    },
+    {
+      "name": "total_consumption_power",
+      "label": "Total Consumption Power",
+      "address": 10008,
+      "function_code": 4,
+      "value_type": "U_WORD",
+      "unit": "W",
+      "multiplier": 1
+    },
+    {
+      "name": "battery_power",
+      "label": "Battery Power",
+      "address": 10022,
+      "function_code": 4,
+      "value_type": "S_WORD",
+      "unit": "W",
+      "multiplier": 1
+    },
+    {
+      "name": "battery_level",
+      "label": "Battery level",
+      "address": 10023,
+      "function_code": 4,
+      "value_type": "U_WORD",
+      "unit": "%",
+      "multiplier": 1
+    },
+    {
+      "name": "battery_health",
+      "label": "Battery health",
+      "address": 10024,
+      "function_code": 4,
+      "value_type": "U_WORD",
+      "unit": "%",
+      "multiplier": 1
+    },
+    {
+      "name": "battery_discharged_total",
+      "label": "Battery Discharged Total",
+      "address": 10027,
+      "function_code": 4,
+      "value_type": "U_DWORD_R",
+      "unit": "kWh",
+      "multiplier": 0.1
+    },
+    {
+      "name": "grid_import_total",
+      "label": "Grid Import Total",
+      "address": 10037,
+      "function_code": 4,
+      "value_type": "U_DWORD_R",
+      "unit": "kWh",
+      "multiplier": 0.1
+    },
+    {
+      "name": "battery_charged_total",
+      "label": "Battery Charged Total",
+      "address": 10041,
+      "function_code": 4,
+      "value_type": "U_DWORD_R",
+      "unit": "kWh",
+      "multiplier": 0.1
+    },
+    {
+      "name": "grid_export_total",
+      "label": "Grid Export Total",
+      "address": 10046,
+      "function_code": 4,
+      "value_type": "U_DWORD_R",
+      "unit": "kWh",
+      "multiplier": 0.1
+    }
+  ]
+}
