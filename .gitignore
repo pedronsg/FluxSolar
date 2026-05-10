@@ -1,0 +1,30 @@
+# Build output
+.orbit/
+bin/
+
+# Editor & IDE
+.vscode/
+.claude/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go
+*.exe
+*.test
+*.out
+vendor/
+
+# Certificates
+certs/
+
+# App runtime data (generated on device / local runs)
+cmd/cmd/
+*.cfg
+*.db
+*.db-shm
+*.db-wal

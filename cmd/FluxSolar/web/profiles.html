@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FluxSolar - Profiles</title>
+  <style>
+    :root { --bg:#0f172a; --card:#1e293b; --border:#334155; --text:#f1f5f9; --muted:#94a3b8; --danger:#f87171; --ok:#34d399; }
+    * { box-sizing: border-box; }
+    body { margin:0; padding:0.8rem; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,'Segoe UI',sans-serif; }
+    .card { background:var(--card); border:1px solid var(--border); border-radius:0.8rem; padding:0.8rem; margin-bottom:0.75rem; }
+    .row { display:grid; gap:0.6rem; grid-template-columns:repeat(1,minmax(0,1fr)); }
+    @media (min-width: 760px){ .row.two { grid-template-columns:repeat(2,minmax(0,1fr)); } .row.three { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+    label { font-size:0.72rem; color:var(--muted); display:block; margin-bottom:0.2rem; }
+    input, select, textarea, button { width:100%; background:#0b1220; color:var(--text); border:1px solid var(--border); border-radius:0.45rem; padding:0.45rem 0.55rem; }
+    textarea { min-height:120px; font-family:ui-monospace,monospace; font-size:0.75rem; }
+    button { cursor:pointer; }
+    .actions { display:flex; gap:0.5rem; flex-wrap:wrap; }
+    .actions button { width:auto; padding:0.45rem 0.7rem; }
+    .danger { border-color:var(--danger); color:var(--danger); }
+    .ok { border-color:var(--ok); color:var(--ok); }
+    table { width:100%; border-collapse: collapse; font-size:0.78rem; }
+    th, td { border-bottom:1px solid var(--border); padding:0.35rem; text-align:left; vertical-align:top; }
+    .msg { margin-top:0.5rem; font-size:0.78rem; color:var(--muted); }
+    .topnav { display:flex; justify-content:space-between; align-items:center; margin-bottom:0.7rem; }
+    .menu { display:flex; gap:0.45rem; }
+    .menu a {
+      color:var(--text);
+      text-decoration:none;
+      border:1px solid var(--border);
+      padding:0.36rem 0.62rem;
+      border-radius:9999px;
+      background: linear-gradient(180deg, #1f2d44 0%, #16253a 100%);
+      font-size:0.78rem;
+    }
+    .menu a.active { border-color:#60a5fa; box-shadow:0 0 0 1px rgba(96,165,250,0.25) inset; }
+  </style>
+</head>
+<body>
+  <div class="topnav">
+    <strong>Profile Management</strong>
+    <div class="menu">
+      <a id="dash-link" href="/">Dashboard</a>
+      <a id="back-link" href="/profiles" class="active">Profiles</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row two">
+      <div>
+        <label>Available profiles</label>
+        <select id="profile-select"></select>
+      </div>
+      <div class="actions" style="align-items:end;">
+        <button id="load-btn" type="button">Load</button>
+        <button id="new-btn" type="button">New</button>
+        <button id="delete-btn" class="danger" type="button">Remove</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div><label>Name</label><input id="name" /></div>
+    </div>
+    <div class="row three" style="margin-top:0.55rem;">
+      <div><label>UART Baud Rate</label><input id="uart-baud" type="number" value="9600" /></div>
+      <div><label>UART Data Bits</label><input id="uart-data-bits" type="number" value="8" /></div>
+      <div><label>UART Parity</label>
+        <select id="uart-parity"><option value="none">none</option><option value="even">even</option><option value="odd">odd</option></select>
+      </div>
+    </div>
+    <div class="row three" style="margin-top:0.55rem;">
+      <div><label>UART Stop Bits</label><input id="uart-stop-bits" type="number" value="1" /></div>
+      <div><label>Modbus Slave Address</label><input id="modbus-slave" type="number" value="1" /></div>
+      <div><label>Modbus Poll Interval (ms)</label><input id="modbus-poll" type="number" value="5000" /></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="actions">
+      <strong>Registers</strong>
+      <button id="add-register" type="button">Add register</button>
+    </div>
+    <table id="registers-table">
+      <thead>
+        <tr>
+          <th>name</th><th>label</th><th>address</th><th>fc</th><th>value_type</th><th>unit</th><th>multiplier</th><th></th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="actions">
+      <button id="save-btn" class="ok" type="button">Save profile</button>
+    </div>
+    <div id="msg" class="msg"></div>
+  </div>
+
+<script>
+  const routePrefix = window.location.pathname.startsWith('/fluxsolar') ? '/fluxsolar' : '';
+  const apiBase = window.location.origin + routePrefix;
+  const API = { profiles: apiBase + '/api/profiles' };
+  document.getElementById('dash-link').href = routePrefix + '/';
+  document.getElementById('back-link').href = routePrefix + '/profiles';
+
+  const $ = (id) => document.getElementById(id);
+  const tbody = document.querySelector('#registers-table tbody');
+  let currentProfileID = '';
+
+  function message(text, isError) {
+    const el = $('msg');
+    el.textContent = text || '';
+    el.style.color = isError ? 'var(--danger)' : 'var(--muted)';
+  }
+
+  function parseJsonOrThrow(response) {
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) throw new Error(`Unexpected response (${response.status})`);
+    return response.json();
+  }
+
+  function addRegisterRow(reg) {
+    const tr = document.createElement('tr');
+    const d = reg || {name:'',label:'',address:0,function_code:4,value_type:'U_WORD',unit:'',multiplier:1};
+    const dashboardFields = [
+      'pv_total_power',
+      'pv1_total_power',
+      'pv2_total_power',
+      'measured_power',
+      'total_consumption_power',
+      'battery_level',
+      'battery_power',
+      'battery_health',
+      'solar_energy_total',
+      'grid_import_total',
+      'grid_export_total',
+      'battery_charged_total',
+      'battery_discharged_total',
+    ];
+    const nameOptions = ['<option value="">-- select --</option>']
+      .concat(dashboardFields.map((f) => `<option value="${f}" ${d.name === f ? 'selected' : ''}>${f}</option>`))
+      .join('');
+    tr.innerHTML = `
+      <td><select data-k="name">${nameOptions}</select></td>
+      <td><input data-k="label" value="${d.label}"></td>
+      <td><input data-k="address" type="number" value="${d.address}"></td>
+      <td><input data-k="function_code" type="number" value="${d.function_code}"></td>
+      <td><select data-k="value_type">
+        <option value="U_WORD"  ${d.value_type==='U_WORD'  ?'selected':''}>U_WORD</option>
+        <option value="S_WORD"  ${d.value_type==='S_WORD'  ?'selected':''}>S_WORD</option>
+        <option value="U_DWORD" ${d.value_type==='U_DWORD' ?'selected':''}>U_DWORD</option>
+        <option value="U_DWORD_R" ${d.value_type==='U_DWORD_R'?'selected':''}>U_DWORD_R</option>
+      </select></td>
+      <td><input data-k="unit" value="${d.unit}"></td>
+      <td><input data-k="multiplier" type="number" step="0.0001" value="${d.multiplier}"></td>
+      <td><button type="button" class="danger">x</button></td>
+    `;
+    tr.querySelector('button').onclick = () => tr.remove();
+    tbody.appendChild(tr);
+  }
+
+  function clearForm() {
+    currentProfileID = '';
+    $('name').value = '';
+    $('uart-baud').value = 9600;
+    $('uart-data-bits').value = 8;
+    $('uart-parity').value = 'none';
+    $('uart-stop-bits').value = 1;
+    $('modbus-slave').value = 1;
+    $('modbus-poll').value = 5000;
+    tbody.innerHTML = '';
+    addRegisterRow();
+  }
+
+  function fillForm(p) {
+    $('name').value = p.name || '';
+    $('uart-baud').value = p.uart?.baud_rate ?? 9600;
+    $('uart-data-bits').value = p.uart?.data_bits ?? 8;
+    $('uart-parity').value = p.uart?.parity ?? 'none';
+    $('uart-stop-bits').value = p.uart?.stop_bits ?? 1;
+    $('modbus-slave').value = p.modbus?.slave_address ?? 1;
+    $('modbus-poll').value = p.modbus?.poll_interval_ms ?? 5000;
+    tbody.innerHTML = '';
+    (p.registers || []).forEach(addRegisterRow);
+    if ((p.registers || []).length === 0) addRegisterRow();
+  }
+
+  function collectProfile() {
+    const registers = [...tbody.querySelectorAll('tr')].map((tr) => {
+      const get = (k) => tr.querySelector(`[data-k="${k}"]`).value;
+      return {
+        name: get('name').trim(),
+        label: get('label').trim(),
+        address: Number(get('address')),
+        function_code: Number(get('function_code')),
+        value_type: get('value_type').trim(),
+        unit: get('unit').trim(),
+        multiplier: Number(get('multiplier')),
+      };
+    }).filter((r) => r.name);
+
+    return {
+      name: $('name').value.trim(),
+      uart: {
+        baud_rate: Number($('uart-baud').value),
+        data_bits: Number($('uart-data-bits').value),
+        parity: $('uart-parity').value,
+        stop_bits: Number($('uart-stop-bits').value),
+      },
+      modbus: {
+        slave_address: Number($('modbus-slave').value),
+        poll_interval_ms: Number($('modbus-poll').value),
+      },
+      registers,
+    };
+  }
+
+  function loadList() {
+    fetch(API.profiles)
+      .then(parseJsonOrThrow)
+      .then((data) => {
+        const s = $('profile-select');
+        s.innerHTML = '';
+        let hasCurrent = false;
+        (data.profiles || []).forEach((p) => {
+          const o = document.createElement('option');
+          o.value = p.id;
+          o.textContent = `${p.id} - ${p.name} (${p.source})`;
+          if (p.id === data.current) {
+            o.selected = true;
+            hasCurrent = true;
+          }
+          s.appendChild(o);
+        });
+        const canWrite = !!data.canWrite;
+        $('save-btn').disabled = !canWrite;
+        $('delete-btn').disabled = !canWrite;
+        message(canWrite ? '' : 'Set --profiles-dir to enable profile editing/writing.', !canWrite);
+
+        const targetID = hasCurrent ? data.current : s.value;
+        if (targetID) {
+          currentProfileID = targetID;
+          fetch(`${API.profiles}/${encodeURIComponent(targetID)}`)
+            .then(parseJsonOrThrow)
+            .then(fillForm)
+            .catch((e) => message(e.message, true));
+        } else {
+          clearForm();
+        }
+      })
+      .catch((e) => message(e.message, true));
+  }
+
+  $('load-btn').onclick = () => {
+    const id = $('profile-select').value;
+    if (!id) return;
+    currentProfileID = id;
+    fetch(`${API.profiles}/${encodeURIComponent(id)}`)
+      .then(parseJsonOrThrow)
+      .then(fillForm)
+      .catch((e) => message(e.message, true));
+  };
+
+  $('new-btn').onclick = clearForm;
+  $('add-register').onclick = () => addRegisterRow();
+
+  $('save-btn').onclick = () => {
+    fetch(API.profiles, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: currentProfileID, profile: collectProfile() }),
+    })
+      .then(parseJsonOrThrow)
+      .then(() => { message('Profile saved successfully.', false); loadList(); })
+      .catch((e) => message(e.message, true));
+  };
+
+  $('delete-btn').onclick = () => {
+    const id = $('profile-select').value;
+    if (!id) return;
+    if (!confirm(`Remove profile "${id}"?`)) return;
+    fetch(`${API.profiles}/${encodeURIComponent(id)}`, { method: 'DELETE' })
+      .then(parseJsonOrThrow)
+      .then(() => { currentProfileID = ''; message('Profile removed.', false); loadList(); clearForm(); })
+      .catch((e) => message(e.message, true));
+  };
+
+  clearForm();
+  loadList();
+</script>
+</body>
+</html>

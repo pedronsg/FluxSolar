@@ -1,0 +1,12 @@
+{
+  "package_id": "org.orbit-os.apps.fluxsolar",
+  "name": "FluxSolar - real-time solar monitoring",
+  "version": "1.0.4",
+  "description": "OrbitOS app FluxSolar",
+  "entry_point": "fluxsolar",
+  "permissions": [
+    "SystemService/*",
+    "UartService/*",
+    "AppHubService/*"
+  ]
+}

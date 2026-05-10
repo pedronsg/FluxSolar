@@ -1,0 +1,12 @@
+{
+  "language": "go",
+  "appPath": "cmd/FluxSolar",
+  "deviceHost": "192.168.5.226",
+  "certsDir": "cmd/certs/grpc",
+  "packagesDir": ".orbit",
+  "expectedOrbBasename": "fluxsolar_v0.1.0.orb",
+  "sdkDevPackageNaming": true,
+  "orbitsignerPath": "",
+  "signingKeyPath": "",
+  "signingCertPath": ""
+}
